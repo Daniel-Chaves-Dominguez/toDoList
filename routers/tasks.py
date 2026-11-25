@@ -13,14 +13,21 @@ counter = 1
 
 
 @router.get('/')
-def get_tasks():
-    return list(task_list.values())
+def get_tasks(completed: bool | None = None, title: str |None = None):
+    to_return = list(task_list.values())
+    if completed != None:
+        #filtered = []
+        #for task in list(task_list.values()):
+            #if task.completed == completed:
+                #filtered.append(task)
+        to_return = [task for task in to_return if task.completed == completed]
+    if title != None:
+        to_return = [task for task in to_return if title in task.title]
+    return to_return
 
 @router.post('/', status_code=201)
 def create_task(task: Task):
-    global counter
-    task_list[counter] = task
-    counter += 1
+    task_list[task.id] = task
     return task
 
 @router.get('/{id}')
@@ -33,6 +40,8 @@ def read_task(id: int):
 def update_task(id: int, task: Task):
     if task_list.get(id) == None:
         raise HTTPException(status_code=404, detail='The task does not exist')
+    if task.id != id:
+        raise HTTPException(status_code=400, detail='The ID is not the same')
     task_list[id] = task
 
 @router.delete('/{id}', status_code=204)

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Manager - FastAPI</title>
+<style>
+    :root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --text: #1e293b;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: var(--bg); color: var(--text); max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+
+    h1 { text-align: center; color: var(--primary); margin-bottom: 1.5rem; }
+
+    /* Formulario */
+    .card { background: var(--card); padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid var(--border); margin-bottom: 2rem; }
+    .form-grid { display: grid; grid-template-columns: 100px 1fr 1fr; gap: 1rem; }
+    .full-width { grid-column: 1 / -1; }
+
+    label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--muted); }
+    input[type="text"], input[type="number"], input[type="datetime-local"], textarea {
+    width: 100%; padding: 0.6rem; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem;
+    }
+    input:disabled { background: #f1f5f9; color: var(--muted); cursor: not-allowed; }
+    textarea { resize: vertical; height: 60px; }
+
+    .checkbox-group { display: flex; gap: 1.5rem; align-items: center; margin-top: 0.5rem; }
+    .checkbox-group label { display: flex; align-items: center; gap: 0.4rem; margin: 0; cursor: pointer; color: var(--text); }
+
+    .btn-group { display: flex; gap: 0.5rem; margin-top: 1rem; }
+    button {
+    padding: 0.6rem 1.2rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-sm { padding: 0.35rem 0.7rem; font-size: 0.8rem; }
+    .btn-danger { background: #fee2e2; color: var(--danger); }
+    .btn-danger:hover { background: var(--danger); color: white; }
+    .btn-edit { background: #e0e7ff; color: var(--primary); }
+    .btn-edit:hover { background: var(--primary); color: white; }
+
+    /* Lista de Tareas */
+    .task-list { display: flex; flex-direction: column; gap: 0.8rem; }
+    .task-item {
+    background: var(--card); padding: 1rem 1.2rem; border-radius: 10px; border: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem; transition: 0.2s;
+    }
+    .task-item.completed { opacity: 0.65; background: #f1f5f9; }
+    .task-item.completed .task-title { text-decoration: line-through; }
+
+    .task-info { flex: 1; }
+    .task-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; }
+    .task-id-pill { font-size: 0.75rem; font-weight: 700; background: #e2e8f0; color: var(--text); padding: 0.15rem 0.45rem; border-radius: 6px; font-family: monospace; }
+    .task-title { font-weight: 700; font-size: 1.05rem; }
+    .badge { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px; font-weight: 600; }
+    .badge-priority { background: #fef3c7; color: #b45309; }
+    .task-desc { color: var(--muted); font-size: 0.9rem; margin: 0 0 0.4rem 0; }
+    .task-date { font-size: 0.8rem; color: var(--muted); }
+
+    .task-actions { display: flex; gap: 0.4rem; align-items: center; }
+    .error-banner { background: #fee2e2; color: #991b1b; padding: 0.8rem; border-radius: 8px; margin-bottom: 1rem; display: none; }
+</style>
+</head>
+<body>
+
+<h1>Gestor de Tareas</h1>
+<div id="errorBanner" class="error-banner"></div>
+
+<!-- FORMULARIO (Crear con POST / Editar con PUT) -->
+<div class="card">
+    <form id="taskForm">
+    <!-- Bandera oculta para saber si estamos editando -->
+    <input type="hidden" id="isEditing" value="false">
+
+    <div class="form-grid">
+        <div>
+          <label for="taskId">ID *</label>
+        <input type="number" id="taskId" required min="1" placeholder="1">
+        </div>
+        <div>
+          <label for="title">Título *</label>
+        <input type="text" id="title" required placeholder="Ej. Revisar API en clase">
+        </div>
+        <div>
+          <label for="date">Fecha y Hora *</label>
+        <input type="datetime-local" id="date" required>
+        </div>
+        <div class="full-width">
+          <label for="description">Descripción *</label>
+        <textarea id="description" required placeholder="Detalles de la tarea..."></textarea>
+        </div>
+        <div class="full-width checkbox-group">
+        <label>
+            <input type="checkbox" id="priority"> Alta Prioridad
+        </label>
+        <label>
+            <input type="checkbox" id="completed"> Completada
+        </label>
+        </div>
+    </div>
+
+    <div class="btn-group">
+        <button type="submit" class="btn-primary" id="submitBtn">Crear Tarea</button>
+        <button type="button" class="btn-secondary" id="cancelBtn" style="display:none;" onclick="resetForm()">Cancelar Edición</button>
+    </div>
+    </form>
+</div>
+
+<!-- LISTADO DE TAREAS -->
+<div id="taskList" class="task-list"></div>
+
+<script>
+    // Ajusta esta URL si tu endpoint es "/tasks" sin barra al final
+    const API_URL = "http://127.0.0.1:8000/tasks/";
+
+    // Lista limpia con las tareas recibidas del GET
+    let tasks = [];
+
+    // Inicializar fecha actual por comodidad
+    document.getElementById("date").value = new Date().toISOString().slice(0, 16);
+
+    function showError(msg) {
+    const banner = document.getElementById("errorBanner");
+    banner.textContent = msg;
+    banner.style.display = "block";
+    setTimeout(() => banner.style.display = "none", 5000);
+    }
+
+    // 1. READ (GET) - Obtener lista de tareas
+    async function loadTasks() {
+    try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error("Error al cargar tareas");
+        tasks = await res.json();
+        renderTasks();
+    } catch (err) {
+        showError("No se pudo conectar con la API. ¿Está Uvicorn corriendo y CORS activado?");
+    }
+    }
+
+    function renderTasks() {
+    const list = document.getElementById("taskList");
+    list.innerHTML = "";
+
+    if (tasks.length === 0) {
+        list.innerHTML = `<p style="text-align:center; color:var(--muted);">No hay tareas todavía. ¡Crea la primera arriba!</p>`;
+        return;
+    }
+
+    tasks.forEach((task) => {
+        const div = document.createElement("div");
+        div.className = `task-item ${task.completed ? "completed" : ""}`;
+
+        const fechaLegible = new Date(task.date).toLocaleString("es-ES", {
+        dateStyle: "medium", timeStyle: "short"
+        });
+
+        div.innerHTML = `
+        <div class="task-info">
+            <div class="task-header">
+            <input type="checkbox" ${task.completed ? "checked" : ""} onchange="toggleComplete(${task.id})" title="Marcar completada">
+            <span class="task-id-pill">#${task.id}</span>
+            <span class="task-title">${task.title}</span>
+            ${task.priority ? '<span class="badge badge-priority">Prioritaria</span>' : ''}
+            </div>
+            <p class="task-desc">${task.description}</p>
+            <span class="task-date">📅 ${fechaLegible}</span>
+        </div>
+        <div class="task-actions">
+            <button class="btn-sm btn-edit" onclick="startEdit(${task.id})">Editar</button>
+            <button class="btn-sm btn-danger" onclick="deleteTask(${task.id})">Eliminar</button>
+        </div>
+        `;
+        list.appendChild(div);
+    });
+    }
+
+    // 2. CREATE (POST) y 3. UPDATE (PUT completo con id incluido)
+    document.getElementById("taskForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const id = Number(document.getElementById("taskId").value);
+    const isEditing = document.getElementById("isEditing").value === "true";
+
+    const payload = {
+        id: id,
+        title: document.getElementById("title").value,
+        description: document.getElementById("description").value,
+        date: document.getElementById("date").value,
+        priority: document.getElementById("priority").checked,
+        completed: document.getElementById("completed").checked
+    };
+
+    const url = isEditing ? `${API_URL}${id}` : API_URL;
+    const method = isEditing ? "PUT" : "POST";
+
+    try {
+        const res = await fetch(url, {
+        method: method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(JSON.stringify(errData.detail));
+        }
+
+        resetForm();
+        loadTasks();
+    } catch (err) {
+        showError("Error al guardar: " + err.message);
+    }
+    });
+
+    // Atajo para marcar como completada enviando el objeto completo (incluido id)
+    async function toggleComplete(id) {
+    const task = tasks.find(t => t.id === id);
+    const updatedTask = {
+        ...task,
+        completed: !task.completed
+    };
+
+    try {
+        const res = await fetch(`${API_URL}${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedTask)
+        });
+        if (!res.ok) throw new Error("Error al actualizar estado");
+        loadTasks();
+    } catch (err) {
+        showError(err.message);
+    }
+    }
+
+    // 4. DELETE - Eliminar tarea
+    async function deleteTask(id) {
+    try {
+        const res = await fetch(`${API_URL}${id}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("Error al eliminar la tarea");
+        loadTasks();
+    } catch (err) {
+        showError(err.message);
+    }
+    }
+
+    // Rellenar el formulario para editar
+    function startEdit(id) {
+    const task = tasks.find(t => t.id === id);
+    document.getElementById("isEditing").value = "true";
+
+    const idInput = document.getElementById("taskId");
+    idInput.value = task.id;
+      idInput.disabled = true; // Bloqueamos el ID al editar para que coincida con la URL del PUT
+
+    document.getElementById("title").value = task.title;
+    document.getElementById("description").value = task.description;
+    document.getElementById("date").value = task.date.slice(0, 16);
+    document.getElementById("priority").checked = Boolean(task.priority);
+    document.getElementById("completed").checked = Boolean(task.completed);
+
+    document.getElementById("submitBtn").textContent = "Guardar Cambios";
+    document.getElementById("cancelBtn").style.display = "inline-block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function resetForm() {
+    document.getElementById("taskForm").reset();
+    document.getElementById("isEditing").value = "false";
+
+    const idInput = document.getElementById("taskId");
+    idInput.disabled = false;
+    idInput.value = "";
+
+    document.getElementById("date").value = new Date().toISOString().slice(0, 16);
+    document.getElementById("submitBtn").textContent = "Crear Tarea";
+    document.getElementById("cancelBtn").style.display = "none";
+    }
+
+    // Cargar tareas al abrir la página
+    loadTasks();
+</script>
+</body>
+</html>
